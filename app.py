@@ -200,16 +200,26 @@ def add_text(image, text, position, color, size):
     return out.convert("RGB")
 
 
+@st.cache_resource
+def get_background_session():
+    """Load the lightweight U2Net model once per Streamlit process."""
+    from rembg import new_session
+
+    return new_session("u2net")
+
+
 def remove_background(image):
-    try:
-        from rembg import remove
-        result = remove(image.convert("RGBA"))
-        return result.convert("RGBA")
-    except ImportError:
-        raise RuntimeError(
-            "Background-removal dependencies are not installed. "
-            "Add rembg and onnxruntime to requirements.txt and redeploy."
-        )
+    """Return an RGBA cutout with the background made transparent."""
+    from rembg import remove
+
+    rgba = image.convert("RGBA")
+    session = get_background_session()
+    result = remove(rgba, session=session)
+
+    if not isinstance(result, Image.Image):
+        result = Image.open(io.BytesIO(result))
+
+    return result.convert("RGBA")
 
 
 def make_photo_sheet(image, photo_w_mm, photo_h_mm, copies, paper, dpi=300):
@@ -431,34 +441,76 @@ elif tool_name == "AI Background Change":
     if original:
         if st.button("Remove background and replace", type="primary"):
             try:
-                with st.spinner("Removing the background. The first run may download a model..."):
+                with st.spinner(
+                    "Removing the background. The first run may download the U2Net model..."
+                ):
                     cutout = remove_background(original)
-                    if background_upload:
+
+                    if background_upload is not None:
                         bg = load_image(background_upload)
+                        if bg is None:
+                            st.error("The replacement background image could not be opened.")
+                            st.stop()
                         canvas = fit_image(bg, original.size).convert("RGBA")
                     else:
-                        rgb = tuple(int(bg_color[i:i+2], 16) for i in (1, 3, 5))
+                        rgb = tuple(
+                            int(bg_color[i:i + 2], 16) for i in (1, 3, 5)
+                        )
                         canvas = Image.new("RGBA", original.size, rgb + (255,))
+
+                    # Resize the subject if requested, then center it on a
+                    # transparent canvas the same size as the background.
                     subject = cutout
                     if scale != 100:
                         new_size = (
-                            max(1, int(subject.width * scale / 100)),
-                            max(1, int(subject.height * scale / 100)),
+                            max(1, round(subject.width * scale / 100)),
+                            max(1, round(subject.height * scale / 100)),
                         )
-                        subject = subject.resize(new_size, Image.Resampling.LANCZOS)
-                        layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-                        x = (layer.width - subject.width) // 2
-                        y = (layer.height - subject.height) // 2
-                        layer.alpha_composite(subject, (x, y))
-                        subject = layer
-                    canvas.alpha_composite(subject, (0, 0))
-                    result = canvas.convert("RGB")
-                    st.image(result, caption="Background replaced", use_container_width=True)
+                        subject = subject.resize(
+                            new_size, Image.Resampling.LANCZOS
+                        )
+
+                    layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+                    x = (canvas.width - subject.width) // 2
+                    y = (canvas.height - subject.height) // 2
+
+                    # Crop safely when the scaled subject is larger than the canvas.
+                    left = max(0, x)
+                    top = max(0, y)
+                    right = min(canvas.width, x + subject.width)
+                    bottom = min(canvas.height, y + subject.height)
+
+                    if right > left and bottom > top:
+                        crop = subject.crop((
+                            left - x,
+                            top - y,
+                            right - x,
+                            bottom - y,
+                        ))
+                        layer.alpha_composite(crop, (left, top))
+
+                    result = Image.alpha_composite(canvas, layer).convert("RGB")
+                    st.image(
+                        result,
+                        caption="Background replaced",
+                        use_container_width=True,
+                    )
                     save_result(result, "background-changed.png")
                     st.success("Background replacement completed.")
+
+            except ImportError as exc:
+                st.error(
+                    "Background-removal packages are missing. Check requirements.txt "
+                    "contains rembg and onnxruntime, then reboot the app."
+                )
+                st.caption(f"Technical detail: {exc}")
             except Exception as exc:
-                st.error(f"Background removal failed: {exc}")
-                st.info("Check that rembg and onnxruntime are installed and the deployment has enough memory.")
+                st.error(f"Background removal failed: {type(exc).__name__}: {exc}")
+                st.info(
+                    "If this is the first run, check the deployment logs for model "
+                    "download errors or memory limits. After changing requirements.txt, "
+                    "reboot the app."
+                )
     else:
         st.info("Upload a subject photo to replace its background.")
 
