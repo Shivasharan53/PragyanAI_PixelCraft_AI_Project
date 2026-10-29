@@ -377,107 +377,197 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# SHARED UPLOAD
-# ---------------------------------------------------------
-with st.container(border=True):
-    st.markdown("### ① Upload your image")
-    st.caption("Start with a clear JPG, PNG or WEBP photo. You can crop it below before editing.")
-    uploaded = st.file_uploader(
-        "Choose a JPG, JPEG, PNG or WEBP image",
-        type=["jpg", "jpeg", "png", "webp"],
-        key=f"upload_{tool_name}",
-    )
-
-original = load_image(uploaded)
-
-# ---------------------------------------------------------
-# OPTIONAL CROP CONTROLS (shown inside every existing tool)
-# ---------------------------------------------------------
-if original is not None:
-    with st.expander("✂️ Optional crop & framing", expanded=False):
-        st.caption("Crop the uploaded photo before using the selected tool. Leave Original selected to keep the full photo.")
-        crop_mode = st.selectbox(
-            "Crop shape",
-            ["Original", "Square (1:1)", "Portrait (4:5)", "Portrait (3:4)", "Landscape (16:9)", "Phone wallpaper (9:16)", "Custom margins"],
-            key=f"crop_mode_{tool_name}",
-        )
-
-        if crop_mode == "Custom margins":
-            c1, c2 = st.columns(2)
-            with c1:
-                crop_left = st.slider("Crop left (%)", 0, 45, 0, key=f"crop_left_{tool_name}")
-                crop_top = st.slider("Crop top (%)", 0, 45, 0, key=f"crop_top_{tool_name}")
-            with c2:
-                crop_right = st.slider("Crop right (%)", 0, 45, 0, key=f"crop_right_{tool_name}")
-                crop_bottom = st.slider("Crop bottom (%)", 0, 45, 0, key=f"crop_bottom_{tool_name}")
-            left_px = int(original.width * crop_left / 100)
-            top_px = int(original.height * crop_top / 100)
-            right_px = original.width - int(original.width * crop_right / 100)
-            bottom_px = original.height - int(original.height * crop_bottom / 100)
-            if right_px - left_px < 10 or bottom_px - top_px < 10:
-                st.warning("The crop is too small. Reduce the crop margins.")
-            else:
-                original = original.crop((left_px, top_px, right_px, bottom_px))
-        elif crop_mode != "Original":
-            ratios = {
-                "Square (1:1)": (1, 1),
-                "Portrait (4:5)": (4, 5),
-                "Portrait (3:4)": (3, 4),
-                "Landscape (16:9)": (16, 9),
-                "Phone wallpaper (9:16)": (9, 16),
-            }
-            target_w, target_h = ratios[crop_mode]
-            current_ratio = original.width / original.height
-            target_ratio = target_w / target_h
-            if current_ratio > target_ratio:
-                new_width = max(1, int(original.height * target_ratio))
-                left_px = (original.width - new_width) // 2
-                crop_box = (left_px, 0, left_px + new_width, original.height)
-            else:
-                new_height = max(1, int(original.width / target_ratio))
-                top_px = (original.height - new_height) // 2
-                crop_box = (0, top_px, original.width, top_px + new_height)
-            original = original.crop(crop_box)
-
-        st.caption(f"Working image size: {original.width} × {original.height} px")
-        st.image(original, caption="Crop preview", use_container_width=True)
-
-# Each tool uses the currently uploaded image.
-# Upload widgets are keyed by tool, so each workspace has its own upload.
-
-# ---------------------------------------------------------
-# TOOL 1: ENHANCEMENT
+# WORKSPACE LAYOUT
 # ---------------------------------------------------------
 if tool_name == "Image Enhancement":
-    left, right = st.columns([1.35, 0.8], gap="large")
+    upload_col, crop_col, settings_col = st.columns([1.02, 1.25, 1.08], gap="medium")
 
-    with right:
-        st.markdown("### Adjustments")
-        brightness = st.slider("Brightness", 0.0, 2.0, 1.0, 0.05)
-        contrast = st.slider("Contrast", 0.0, 2.0, 1.0, 0.05)
-        saturation = st.slider("Saturation", 0.0, 2.0, 1.0, 0.05)
-        sharpness = st.slider("Sharpness", 0.0, 3.0, 1.0, 0.1)
-        apply = st.button("Apply enhancement", type="primary", use_container_width=True)
+    with upload_col:
+        with st.container(border=True):
+            st.markdown("### 🟣 ① Upload your image")
+            st.caption("Start with a clear JPG, PNG or WEBP photo.")
+            uploaded = st.file_uploader(
+                "Drag and drop your image or browse",
+                type=["jpg", "jpeg", "png", "webp"],
+                key=f"upload_{tool_name}",
+                help="Supported formats: JPG, PNG, WEBP",
+            )
+            original = load_image(uploaded)
+            if original is None:
+                st.markdown(
+                    "<div style='text-align:center;padding:22px 8px;color:#737d98'>"
+                    "<div style='font-size:42px;color:#7950f2'>☁</div>"
+                    "<b>Choose an image to begin</b><br>"
+                    "<span style='font-size:12px'>Your photo preview will appear below.</span></div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.image(original, caption=f"Original · {original.width} × {original.height}px", use_container_width=True)
 
-    if original:
-        result = ImageEnhance.Brightness(original).enhance(brightness)
-        result = ImageEnhance.Contrast(result).enhance(contrast)
-        result = ImageEnhance.Color(result).enhance(saturation)
-        result = ImageEnhance.Sharpness(result).enhance(sharpness)
+    with crop_col:
+        with st.container(border=True):
+            st.markdown("### 🟣 ② Crop & framing")
+            st.caption("Optional. Keep Original to preserve the full photo.")
+            crop_mode = st.selectbox(
+                "Choose aspect ratio",
+                ["Original", "Square (1:1)", "Portrait (4:5)", "Portrait (3:4)", "Landscape (16:9)", "Phone wallpaper (9:16)", "Custom margins"],
+                key=f"crop_mode_{tool_name}",
+            )
+            if crop_mode == "Custom margins":
+                c1, c2 = st.columns(2)
+                with c1:
+                    crop_left = st.slider("Left (%)", 0, 45, 0, key=f"crop_left_{tool_name}")
+                    crop_top = st.slider("Top (%)", 0, 45, 0, key=f"crop_top_{tool_name}")
+                with c2:
+                    crop_right = st.slider("Right (%)", 0, 45, 0, key=f"crop_right_{tool_name}")
+                    crop_bottom = st.slider("Bottom (%)", 0, 45, 0, key=f"crop_bottom_{tool_name}")
+                if original is not None:
+                    l = int(original.width * crop_left / 100)
+                    t = int(original.height * crop_top / 100)
+                    r = original.width - int(original.width * crop_right / 100)
+                    b = original.height - int(original.height * crop_bottom / 100)
+                    if r - l >= 10 and b - t >= 10:
+                        original = original.crop((l, t, r, b))
+                    else:
+                        st.warning("Crop is too small. Reduce the margins.")
+            elif original is not None and crop_mode != "Original":
+                ratios = {
+                    "Square (1:1)": (1, 1), "Portrait (4:5)": (4, 5),
+                    "Portrait (3:4)": (3, 4), "Landscape (16:9)": (16, 9),
+                    "Phone wallpaper (9:16)": (9, 16),
+                }
+                tw, th = ratios[crop_mode]
+                ratio = tw / th
+                if original.width / original.height > ratio:
+                    nw = max(1, int(original.height * ratio))
+                    x = (original.width - nw) // 2
+                    original = original.crop((x, 0, x + nw, original.height))
+                else:
+                    nh = max(1, int(original.width / ratio))
+                    y = (original.height - nh) // 2
+                    original = original.crop((0, y, original.width, y + nh))
+            if original is not None:
+                st.caption(f"Working size: {original.width} × {original.height}px")
+                st.image(original, use_container_width=True)
 
-        with left:
-            render_preview(original, result)
+    with settings_col:
+        with st.container(border=True):
+            st.markdown("### 🟣 ③ Enhancement settings")
+            st.caption("Adjust the image to get the best result.")
+            brightness = st.slider("Brightness", -100, 100, 0, 5, key="enh_brightness")
+            contrast = st.slider("Contrast", -100, 100, 0, 5, key="enh_contrast")
+            saturation = st.slider("Saturation", -100, 100, 0, 5, key="enh_saturation")
+            color = st.slider("Color intensity", -100, 100, 0, 5, key="enh_color")
+            sharpness = st.slider("Sharpness", -100, 100, 0, 5, key="enh_sharpness")
+            apply = st.button("✦ Apply Enhancement", type="primary", use_container_width=True)
 
-        if apply:
-            save_result(result, "enhanced-image.png")
-            st.success("Enhancement applied. Your edited image is ready to download.")
+    if original is not None:
+        result = ImageEnhance.Brightness(original).enhance(max(0, 1 + brightness / 100))
+        result = ImageEnhance.Contrast(result).enhance(max(0, 1 + contrast / 100))
+        result = ImageEnhance.Color(result).enhance(max(0, 1 + saturation / 100))
+        result = ImageEnhance.Color(result).enhance(max(0, 1 + color / 100))
+        result = ImageEnhance.Sharpness(result).enhance(max(0, 1 + sharpness / 100))
+        st.markdown(" ")
+        preview_col, actions_col = st.columns([2.1, 1], gap="medium")
+        with preview_col:
+            with st.container(border=True):
+                st.markdown("### Original image & enhanced preview")
+                p1, p2 = st.columns(2, gap="medium")
+                with p1:
+                    st.markdown("**Original Image**")
+                    st.image(original, use_container_width=True)
+                with p2:
+                    st.markdown("**Enhanced Preview**")
+                    st.image(result, use_container_width=True)
+        with actions_col:
+            with st.container(border=True):
+                st.markdown("### Download & actions")
+                st.caption("Save your result or start again.")
+                if apply:
+                    save_result(result, "enhanced-image.png")
+                    st.success("Enhancement applied.")
+                if st.session_state.result_image is not None:
+                    st.download_button(
+                        "⬇ Download Image", data=png_bytes(st.session_state.result_image),
+                        file_name=st.session_state.result_name or "enhanced-image.png",
+                        mime="image/png", type="primary", use_container_width=True,
+                    )
+                else:
+                    st.button("⬇ Download Image", disabled=True, use_container_width=True)
+                a1, a2 = st.columns(2)
+                with a1:
+                    if st.button("↻ Reset All", use_container_width=True):
+                        for key in ["enh_brightness", "enh_contrast", "enh_saturation", "enh_color", "enh_sharpness"]:
+                            st.session_state[key] = 0
+                        st.session_state.result_image = None
+                        st.rerun()
+                with a2:
+                    if st.button("Use Original", use_container_width=True):
+                        save_result(original, "original-image.png")
+                        st.rerun()
+                st.markdown(
+                    "<div style='background:#f0f3ff;border-radius:12px;padding:13px;color:#35415f'>"
+                    "<b>💡 Tips</b><br><small>• Increase contrast for clearer details.<br>"
+                    "• Boost saturation for vivid colors.<br>• Increase sharpness for crisper images.</small></div>",
+                    unsafe_allow_html=True,
+                )
     else:
-        st.info("Upload an image to start adjusting it.")
+        st.info("Upload an image to start enhancing it.")
+else:
+    with st.container(border=True):
+        st.markdown("### ① Upload your image")
+        st.caption("Start with a clear JPG, PNG or WEBP photo. You can crop it below before editing.")
+        uploaded = st.file_uploader(
+            "Choose a JPG, JPEG, PNG or WEBP image",
+            type=["jpg", "jpeg", "png", "webp"],
+            key=f"upload_{tool_name}",
+        )
+    original = load_image(uploaded)
+    if original is not None:
+        with st.expander("✂️ Optional crop & framing", expanded=False):
+            st.caption("Crop the uploaded photo before using the selected tool.")
+            crop_mode = st.selectbox(
+                "Crop shape",
+                ["Original", "Square (1:1)", "Portrait (4:5)", "Portrait (3:4)", "Landscape (16:9)", "Phone wallpaper (9:16)", "Custom margins"],
+                key=f"crop_mode_{tool_name}",
+            )
+            if crop_mode == "Custom margins":
+                c1, c2 = st.columns(2)
+                with c1:
+                    crop_left = st.slider("Crop left (%)", 0, 45, 0, key=f"crop_left_{tool_name}")
+                    crop_top = st.slider("Crop top (%)", 0, 45, 0, key=f"crop_top_{tool_name}")
+                with c2:
+                    crop_right = st.slider("Crop right (%)", 0, 45, 0, key=f"crop_right_{tool_name}")
+                    crop_bottom = st.slider("Crop bottom (%)", 0, 45, 0, key=f"crop_bottom_{tool_name}")
+                l = int(original.width * crop_left / 100)
+                t = int(original.height * crop_top / 100)
+                r = original.width - int(original.width * crop_right / 100)
+                b = original.height - int(original.height * crop_bottom / 100)
+                if r - l >= 10 and b - t >= 10:
+                    original = original.crop((l, t, r, b))
+                else:
+                    st.warning("Crop is too small. Reduce the crop margins.")
+            elif crop_mode != "Original":
+                ratios = {"Square (1:1)": (1, 1), "Portrait (4:5)": (4, 5),
+                          "Portrait (3:4)": (3, 4), "Landscape (16:9)": (16, 9),
+                          "Phone wallpaper (9:16)": (9, 16)}
+                tw, th = ratios[crop_mode]
+                ratio = tw / th
+                if original.width / original.height > ratio:
+                    nw = max(1, int(original.height * ratio))
+                    x = (original.width - nw) // 2
+                    original = original.crop((x, 0, x + nw, original.height))
+                else:
+                    nh = max(1, int(original.width / ratio))
+                    y = (original.height - nh) // 2
+                    original = original.crop((0, y, original.width, y + nh))
+            st.caption(f"Working image size: {original.width} × {original.height} px")
+            st.image(original, caption="Crop preview", use_container_width=True)
 
 # ---------------------------------------------------------
 # TOOL 2: IMAGE BLENDING
 # ---------------------------------------------------------
-elif tool_name == "Image Blending":
+if tool_name == "Image Blending":
     second_upload = st.file_uploader(
         "Upload the second image to blend",
         type=["jpg", "jpeg", "png", "webp"],
