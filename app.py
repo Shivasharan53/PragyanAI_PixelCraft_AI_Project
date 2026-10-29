@@ -225,9 +225,10 @@ def get_background_session():
     """Load a portrait-focused segmentation model once per app process."""
     from rembg import new_session
 
-    # BirefNet portrait is generally better for people, hair, and clothing edges
-    # than the older general-purpose U2Net model.
-    return new_session("birefnet-portrait")
+    # Use the smaller u2net model to avoid downloading the ~1 GB BiRefNet
+    # portrait model on first use. This reduces startup/download time, though
+    # fine hair edges may differ from the larger portrait model.
+    return new_session("u2net")
 
 
 def remove_background(image):
