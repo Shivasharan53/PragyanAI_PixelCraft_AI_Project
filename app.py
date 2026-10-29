@@ -94,6 +94,61 @@ header[data-testid="stHeader"] [data-testid="stToolbar"] { color:#263451 !import
 [data-testid="stMain"] .stButton > button:not([kind="primary"]):not([data-testid="baseButton-primary"]) { color:#4f3cc7 !important; background:#f1edff; border:1px solid #e0d9ff; }
 [data-testid="stMain"] .stButton > button[kind="primary"],
 [data-testid="stMain"] .stButton > button[data-testid="baseButton-primary"] { color:#fff !important; }
+/* Strong, consistent Image Studio visual system */
+:root { color-scheme: light !important; }
+.stApp, [data-testid="stAppViewContainer"] { background: #f3f5fc !important; }
+[data-testid="stMainBlockContainer"] { max-width: 1680px; padding-left: 1.25rem; padding-right: 1.25rem; }
+/* Card-like containers and expanders */
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
+  background: #ffffff; border: 1px solid #e4e8f5; border-radius: 17px;
+  box-shadow: 0 5px 18px rgba(31,43,79,.045); padding: 2px;
+}
+[data-testid="stMain"] [data-testid="stExpander"] {
+  background: #ffffff !important; border: 1px solid #e2e5f2 !important;
+  border-radius: 15px !important; box-shadow: 0 4px 15px rgba(31,43,79,.035);
+}
+/* Primary action buttons: always purple with white readable text */
+[data-testid="stMain"] button[kind="primary"],
+[data-testid="stMain"] button[data-testid="baseButton-primary"] {
+  background: linear-gradient(110deg,#8957ff 0%,#6239ed 100%) !important;
+  color: #ffffff !important; border: 0 !important; border-radius: 11px !important;
+  min-height: 44px; font-weight: 700 !important;
+  box-shadow: 0 5px 14px rgba(104,75,235,.22) !important;
+}
+[data-testid="stMain"] button[kind="primary"] *,
+[data-testid="stMain"] button[data-testid="baseButton-primary"] * { color: #ffffff !important; fill: #ffffff !important; }
+/* Secondary buttons: pale lavender background and deep-purple text */
+[data-testid="stMain"] button[kind="secondary"],
+[data-testid="stMain"] button[data-testid="baseButton-secondary"] {
+  background: #f0ebff !important; color: #4e35bd !important;
+  border: 1px solid #ddd3ff !important; border-radius: 11px !important;
+  min-height: 42px; font-weight: 650 !important;
+}
+[data-testid="stMain"] button[kind="secondary"] *,
+[data-testid="stMain"] button[data-testid="baseButton-secondary"] * { color: #4e35bd !important; fill: #4e35bd !important; }
+[data-testid="stMain"] button:hover { border-color: #9b83ff !important; filter: brightness(.99); }
+/* Sidebar retains the dark navy + vivid purple selection from the reference */
+section[data-testid="stSidebar"] { background: #101831 !important; }
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] { color: #c5cde8 !important; }
+section[data-testid="stSidebar"] button[kind="primary"],
+section[data-testid="stSidebar"] button[data-testid="baseButton-primary"] {
+  background: linear-gradient(110deg,#8957ff,#6239ed) !important;
+  color: #fff !important; border-radius: 11px !important;
+}
+section[data-testid="stSidebar"] button[kind="primary"] *,
+section[data-testid="stSidebar"] button[data-testid="baseButton-primary"] * { color: #fff !important; }
+/* Inputs, upload area and slider accent */
+[data-testid="stMain"] input, [data-testid="stMain"] textarea {
+  background: #ffffff !important; color: #17213b !important; border-radius: 10px !important;
+}
+[data-testid="stMain"] [data-testid="stFileUploaderDropzone"] {
+  background: #fbfaff !important; border: 1.5px dashed #b9aaff !important; border-radius: 14px !important;
+}
+[data-testid="stMain"] [data-testid="stFileUploaderDropzone"] * { color: #263451 !important; }
+[data-testid="stMain"] [data-testid="stSlider"] [role="slider"] { background: #7448f5 !important; border-color: #7448f5 !important; }
+[data-testid="stMain"] [data-testid="stMetric"] { background: #fff !important; border: 1px solid #e4e8f5; border-radius: 14px; }
+header[data-testid="stHeader"] { background: rgba(244,246,252,.98) !important; }
 footer { visibility:hidden; }
 </style>
 """, unsafe_allow_html=True)
