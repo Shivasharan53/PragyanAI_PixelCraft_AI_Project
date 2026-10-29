@@ -1,191 +1,716 @@
+import io
+import math
+from datetime import date
+
+import numpy as np
 import streamlit as st
-from PIL import Image, ImageOps, ImageEnhance
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps, ImageDraw, ImageFont, ImageChops
 
-from image_studio.editing import (
-    enhance_image,
-    blend_images,
-    grayscale_image,
-    sketch_image,
-    remove_image_background,
-    replace_background,
-)
-
+# ---------------------------------------------------------
+# PAGE CONFIGURATION
+# ---------------------------------------------------------
 st.set_page_config(
-    page_title="PragyanAI Image Studio",
-    page_icon="🎨",
+    page_title="Image Studio",
+    page_icon="✦",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-st.title("🎨 PragyanAI Image Studio")
-st.write("Your all-in-one image editing studio.")
+TOOLS = [
+    ("1", "Image Enhancement", "Adjust brightness, contrast, color and sharpness."),
+    ("2", "Image Blending", "Blend two images using opacity and blend modes."),
+    ("3", "AI Background Change", "Remove a background and add a replacement."),
+    ("4", "Black & White", "Convert color photos to grayscale."),
+    ("5", "Color to Sketch", "Create a pencil-style drawing."),
+    ("6", "Passport Photo Sheet", "Arrange passport photos for printing."),
+    ("7", "Stamp Photo Maker", "Create repeated small photo prints."),
+    ("8", "Image Similarity", "Compare two images and inspect differences."),
+    ("9", "Add Date & Text", "Add captions, dates and watermarks."),
+    ("10", "Image Geotagging", "Add visible location and coordinate labels."),
+    ("11", "Collage Maker", "Combine multiple photos in a grid."),
+    ("12", "Wallpaper Designer", "Design a phone or desktop wallpaper."),
+]
 
-tool = st.sidebar.selectbox(
-    "Choose a tool",
-    [
-        "Image Enhancement",
-        "Image Blending",
-        "AI Background Change",
-        "Color to Black and White",
-        "Color to Sketch",
-    ],
-)
+# ---------------------------------------------------------
+# CUSTOM DESIGN
+# ---------------------------------------------------------
+st.markdown("""
+<style>
+:root { color-scheme: light; }
+.stApp {
+    background: #f5f6fb;
+    color: #20243a;
+}
+header[data-testid="stHeader"] {
+    background: rgba(245,246,251,.92);
+}
+.block-container {
+    padding-top: 1.5rem;
+    padding-bottom: 3rem;
+    max-width: 1600px;
+}
+section[data-testid="stSidebar"] {
+    background: #11182b;
+    border-right: 1px solid #27314b;
+}
+section[data-testid="stSidebar"] * {
+    color: #eef1ff;
+}
+section[data-testid="stSidebar"] .stButton > button {
+    text-align: left;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #d2d9ef;
+    border-radius: 11px;
+    min-height: 44px;
+    padding: .55rem .7rem;
+    font-size: .88rem;
+}
+section[data-testid="stSidebar"] .stButton > button:hover {
+    background: #222d49;
+    border-color: #414d70;
+}
+.stButton > button[kind="primary"],
+.stButton > button[data-testid="baseButton-primary"] {
+    background: linear-gradient(110deg,#7664ed,#5c50d5);
+    color: white;
+    border: 0;
+    border-radius: 10px;
+    font-weight: 650;
+}
+.stButton > button {
+    border-radius: 10px;
+    min-height: 42px;
+}
+.stTextInput input, .stNumberInput input,
+.stDateInput input, .stSelectbox div[data-baseweb="select"] {
+    border-radius: 10px;
+}
+.stSlider [data-baseweb="slider"] {
+    padding-top: .35rem;
+}
+.hero {
+    background: linear-gradient(120deg,#ffffff,#f0edff);
+    border: 1px solid #e3e2f4;
+    padding: 22px 25px;
+    border-radius: 18px;
+    margin-bottom: 20px;
+}
+.hero h1 {
+    margin: 0;
+    font-size: 2rem;
+    letter-spacing: -.045em;
+    color: #20243a;
+}
+.hero p { color: #70758d; margin: .45rem 0 0; }
+.panel {
+    background: white;
+    border: 1px solid #e5e7f0;
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 15px;
+}
+.panel-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #252943;
+}
+.muted { color: #737990; font-size: .88rem; }
+.tool-chip {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 5px 11px;
+    background: #eeeaff;
+    color: #5c50c9;
+    font-size: .8rem;
+    font-weight: 650;
+}
+div[data-testid="stImage"] img {
+    border-radius: 12px;
+}
+footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
 
-def upload_image(label, key):
-    file = st.file_uploader(
-        label,
-        type=["png", "jpg", "jpeg", "webp"],
-        key=key,
-    )
-    if file is None:
+# ---------------------------------------------------------
+# SESSION STATE
+# ---------------------------------------------------------
+if "selected_tool" not in st.session_state:
+    st.session_state.selected_tool = "Image Enhancement"
+
+if "main_image" not in st.session_state:
+    st.session_state.main_image = None
+
+if "result_image" not in st.session_state:
+    st.session_state.result_image = None
+
+if "result_name" not in st.session_state:
+    st.session_state.result_name = ""
+
+# ---------------------------------------------------------
+# IMAGE HELPERS
+# ---------------------------------------------------------
+def load_image(upload):
+    if upload is None:
         return None
-
     try:
-        with Image.open(file) as img:
-            img.load()
-            return ImageOps.exif_transpose(img).copy()
-    except Exception as exc:
-        st.error(f"Could not open image: {exc}")
+        image = Image.open(upload)
+        image.load()
+        return ImageOps.exif_transpose(image).convert("RGB")
+    except Exception:
+        st.error("This image could not be opened. Please upload a valid PNG or JPG.")
         return None
 
 
-def show_result(image, filename="edited_image.png"):
-    st.image(image, caption="Preview", use_container_width=True)
+def png_bytes(image):
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
 
-    if image.mode in ("RGBA", "LA"):
-        image = image.convert("RGBA")
-        image_format = "PNG"
+
+def fit_image(image, size):
+    return ImageOps.fit(image.convert("RGB"), size, method=Image.Resampling.LANCZOS)
+
+
+def make_font(size):
+    try:
+        return ImageFont.truetype("DejaVuSans.ttf", size)
+    except OSError:
+        return ImageFont.load_default()
+
+
+def add_text(image, text, position, color, size):
+    out = image.convert("RGBA").copy()
+    draw = ImageDraw.Draw(out)
+    font = make_font(size)
+    box = draw.textbbox((0, 0), text, font=font, stroke_width=2)
+    tw, th = box[2] - box[0], box[3] - box[1]
+    x = max(8, (out.width - tw) // 2)
+    if position == "Top":
+        y = 15
+    elif position == "Center":
+        y = (out.height - th) // 2
     else:
-        image_format = "PNG"
-
-    from io import BytesIO
-    buffer = BytesIO()
-    image.save(buffer, format=image_format)
-
-    st.download_button(
-        "⬇️ Download image",
-        data=buffer.getvalue(),
-        file_name=filename,
-        mime="image/png",
+        y = max(8, out.height - th - 25)
+    draw.text(
+        (x, y), text, font=font, fill=color,
+        stroke_width=max(1, size // 18), stroke_fill=(0, 0, 0, 170)
     )
+    return out.convert("RGB")
 
 
-if tool == "Image Enhancement":
-    st.subheader("✨ Image Enhancement")
-    image = upload_image("Upload an image", "enhance")
-
-    if image:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.image(image, caption="Original", use_container_width=True)
-        with col2:
-            brightness = st.slider("Brightness", 0.0, 2.0, 1.0, 0.05)
-            contrast = st.slider("Contrast", 0.0, 2.0, 1.0, 0.05)
-            color = st.slider("Color", 0.0, 2.0, 1.0, 0.05)
-            sharpness = st.slider("Sharpness", 0.0, 3.0, 1.0, 0.05)
-
-        if st.button("Enhance image", type="primary"):
-            result = enhance_image(
-                image,
-                brightness=brightness,
-                contrast=contrast,
-                color=color,
-                sharpness=sharpness,
-            )
-            st.subheader("Enhanced result")
-            show_result(result, "enhanced.png")
-
-
-elif tool == "Image Blending":
-    st.subheader("🖼️ Image Blending")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        base = upload_image("Upload base image", "blend_base")
-    with col2:
-        overlay = upload_image("Upload overlay image", "blend_overlay")
-
-    if base and overlay:
-        opacity = st.slider("Overlay opacity", 0.0, 1.0, 0.5, 0.05)
-        mode = st.selectbox(
-            "Blend mode", ["Normal", "Multiply", "Screen", "Add"]
-        )
-        fit = st.selectbox(
-            "Overlay fit", ["Cover/crop to base", "Stretch", "Contain"]
+def remove_background(image):
+    try:
+        from rembg import remove
+        result = remove(image.convert("RGBA"))
+        return result.convert("RGBA")
+    except ImportError:
+        raise RuntimeError(
+            "Background-removal dependencies are not installed. "
+            "Add rembg and onnxruntime to requirements.txt and redeploy."
         )
 
-        if st.button("Blend images", type="primary"):
-            result = blend_images(base, overlay, opacity, mode, fit)
-            show_result(result, "blended.png")
+
+def make_photo_sheet(image, photo_w_mm, photo_h_mm, copies, paper, dpi=300):
+    # Output pixels at the chosen print resolution.
+    mm_to_px = dpi / 25.4
+    page_mm = (210, 297) if paper == "A4" else (216, 279)
+    W, H = [round(v * mm_to_px) for v in page_mm]
+    fw = max(1, round(photo_w_mm * mm_to_px))
+    fh = max(1, round(photo_h_mm * mm_to_px))
+    gap = round(3 * mm_to_px)
+    margin = round(5 * mm_to_px)
+
+    cols = max(1, (W - 2 * margin + gap) // (fw + gap))
+    rows = max(1, (H - 2 * margin + gap) // (fh + gap))
+    capacity = cols * rows
+
+    sheet = Image.new("RGB", (W, H), "white")
+    draw = ImageDraw.Draw(sheet)
+    thumb = fit_image(image, (fw, fh))
+    count = min(copies, capacity)
+
+    for i in range(count):
+        x = margin + (i % cols) * (fw + gap)
+        y = margin + (i // cols) * (fh + gap)
+        sheet.paste(thumb, (x, y))
+        draw.rectangle((x, y, x + fw - 1, y + fh - 1), outline="#bbbbbb", width=2)
+
+    return sheet, count, capacity
 
 
-elif tool == "AI Background Change":
-    st.subheader("🌄 AI Background Change")
-    st.info(
-        "Upload a subject photo and a replacement background. "
-        "The first AI model initialization may take some time."
+def similarity_score(image_a, image_b):
+    # Pixel similarity after resizing both images to the same dimensions.
+    size = (160, 160)
+    a = np.asarray(fit_image(image_a, size), dtype=np.float32)
+    b = np.asarray(fit_image(image_b, size), dtype=np.float32)
+    mae = np.mean(np.abs(a - b))
+    return max(0.0, 100.0 * (1.0 - mae / 255.0))
+
+
+def sketch_image(image, strength):
+    gray = ImageOps.grayscale(image)
+    inverted = ImageOps.invert(gray)
+    blurred = inverted.filter(
+        ImageFilter.GaussianBlur(radius=float(strength))
+    )
+    a = np.asarray(gray, dtype=np.float32)
+    b = np.asarray(blurred, dtype=np.float32)
+    dodge = np.minimum(255, a * 255 / np.maximum(1, 255 - b))
+    return Image.fromarray(np.uint8(dodge.clip(0, 255))).convert("RGB")
+
+
+def render_preview(original, result):
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**Original**")
+        st.image(original, use_container_width=True)
+    with right:
+        st.markdown("**Edited result**")
+        st.image(result, use_container_width=True)
+
+
+def save_result(image, filename="image-studio.png"):
+    st.session_state.result_image = image.copy()
+    st.session_state.result_name = filename
+
+
+# ---------------------------------------------------------
+# SIDEBAR NAVIGATION
+# ---------------------------------------------------------
+with st.sidebar:
+    st.markdown(
+        "<div style='padding:10px 6px 22px'>"
+        "<div style='font-size:12px;color:#9ca9ce;letter-spacing:2px'>CREATIVE WORKSPACE</div>"
+        "<div style='font-size:27px;font-weight:800;margin-top:5px'>✦ Image Studio</div>"
+        "<div style='color:#9ca9ce;font-size:12px;margin-top:5px'>Your photos, your creativity.</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("##### IMAGE TOOLS")
+    for number, name, description in TOOLS:
+        is_selected = st.session_state.selected_tool == name
+        if st.button(
+            f"{number}   {name}",
+            key=f"nav_{number}",
+            use_container_width=True,
+            type="primary" if is_selected else "secondary",
+        ):
+            st.session_state.selected_tool = name
+            st.session_state.result_image = None
+            st.rerun()
+
+    st.divider()
+    st.caption("IMAGE STUDIO · BROWSER EDITION")
+    st.caption("Upload • Edit • Export")
+
+
+# ---------------------------------------------------------
+# MAIN HEADER
+# ---------------------------------------------------------
+tool_name = st.session_state.selected_tool
+description = next(t[2] for t in TOOLS if t[1] == tool_name)
+
+st.markdown(
+    f"""
+    <div class="hero">
+      <span class="tool-chip">IMAGE STUDIO / TOOL {next(t[0] for t in TOOLS if t[1] == tool_name)}</span>
+      <h1>{tool_name}</h1>
+      <p>{description}</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------
+# SHARED UPLOAD
+# ---------------------------------------------------------
+with st.container(border=True):
+    st.markdown("**Upload your image**")
+    uploaded = st.file_uploader(
+        "Choose a JPG, JPEG, PNG or WEBP image",
+        type=["jpg", "jpeg", "png", "webp"],
+        key=f"upload_{tool_name}",
     )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        subject = upload_image("Upload person or subject", "subject")
-    with col2:
-        background = upload_image("Upload new background", "background")
+original = load_image(uploaded)
 
-    if subject:
-        with st.expander("Preview subject"):
-            st.image(subject, use_container_width=True)
+# Each tool uses the currently uploaded image.
+# Upload widgets are keyed by tool, so each workspace has its own upload.
 
-    if subject and background:
-        fit = st.selectbox("Background sizing", ["Cover/crop", "Stretch"])
+# ---------------------------------------------------------
+# TOOL 1: ENHANCEMENT
+# ---------------------------------------------------------
+if tool_name == "Image Enhancement":
+    left, right = st.columns([1.35, 0.8], gap="large")
 
-        if st.button("Remove background and replace it", type="primary"):
+    with right:
+        st.markdown("### Adjustments")
+        brightness = st.slider("Brightness", 0.0, 2.0, 1.0, 0.05)
+        contrast = st.slider("Contrast", 0.0, 2.0, 1.0, 0.05)
+        saturation = st.slider("Saturation", 0.0, 2.0, 1.0, 0.05)
+        sharpness = st.slider("Sharpness", 0.0, 3.0, 1.0, 0.1)
+        apply = st.button("Apply enhancement", type="primary", use_container_width=True)
+
+    if original:
+        result = ImageEnhance.Brightness(original).enhance(brightness)
+        result = ImageEnhance.Contrast(result).enhance(contrast)
+        result = ImageEnhance.Color(result).enhance(saturation)
+        result = ImageEnhance.Sharpness(result).enhance(sharpness)
+
+        with left:
+            render_preview(original, result)
+
+        if apply:
+            save_result(result, "enhanced-image.png")
+            st.success("Enhancement applied. Your edited image is ready to download.")
+    else:
+        st.info("Upload an image to start adjusting it.")
+
+# ---------------------------------------------------------
+# TOOL 2: IMAGE BLENDING
+# ---------------------------------------------------------
+elif tool_name == "Image Blending":
+    second_upload = st.file_uploader(
+        "Upload the second image to blend",
+        type=["jpg", "jpeg", "png", "webp"],
+        key="blend_second",
+    )
+    opacity = st.slider("Overlay opacity", 0, 100, 50)
+    mode = st.selectbox(
+        "Blend mode",
+        ["Normal", "Multiply", "Screen", "Difference", "Darken", "Lighten"],
+    )
+
+    if original and second_upload:
+        second = load_image(second_upload)
+        if second:
+            base = original.convert("RGBA")
+            overlay = fit_image(second, original.size).convert("RGBA")
+            overlay.putalpha(round(opacity * 255 / 100))
+
+            if mode == "Normal":
+                result = Image.alpha_composite(base, overlay)
+            else:
+                rgb_a = np.asarray(original.convert("RGB"), dtype=np.float32)
+                rgb_b = np.asarray(fit_image(second, original.size), dtype=np.float32)
+                if mode == "Multiply":
+                    arr = rgb_a * rgb_b / 255
+                elif mode == "Screen":
+                    arr = 255 - (255 - rgb_a) * (255 - rgb_b) / 255
+                elif mode == "Difference":
+                    arr = np.abs(rgb_a - rgb_b)
+                elif mode == "Darken":
+                    arr = np.minimum(rgb_a, rgb_b)
+                else:
+                    arr = np.maximum(rgb_a, rgb_b)
+                blended = Image.fromarray(np.uint8(arr.clip(0, 255))).convert("RGBA")
+                result = Image.blend(base, blended, opacity / 100)
+
+            result = result.convert("RGB")
+            render_preview(original, result)
+            if st.button("Apply blend", type="primary"):
+                save_result(result, "blended-image.png")
+                st.success("Blend created.")
+    else:
+        st.info("Upload both images to preview the blend.")
+
+# ---------------------------------------------------------
+# TOOL 3: AI BACKGROUND CHANGE
+# ---------------------------------------------------------
+elif tool_name == "AI Background Change":
+    background_upload = st.file_uploader(
+        "Optional: upload a replacement background image",
+        type=["jpg", "jpeg", "png", "webp"],
+        key="replacement_background",
+    )
+    bg_color = st.color_picker("Or choose a background color", "#dce5f5")
+    scale = st.slider("Subject scale", 50, 150, 100)
+
+    if original:
+        if st.button("Remove background and replace", type="primary"):
             try:
-                with st.spinner("Removing background with AI..."):
-                    result = replace_background(subject, background, fit)
-
-                st.success("Background replacement complete!")
-                show_result(result, "background_replaced.png")
-
+                with st.spinner("Removing the background. The first run may download a model..."):
+                    cutout = remove_background(original)
+                    if background_upload:
+                        bg = load_image(background_upload)
+                        canvas = fit_image(bg, original.size).convert("RGBA")
+                    else:
+                        rgb = tuple(int(bg_color[i:i+2], 16) for i in (1, 3, 5))
+                        canvas = Image.new("RGBA", original.size, rgb + (255,))
+                    subject = cutout
+                    if scale != 100:
+                        new_size = (
+                            max(1, int(subject.width * scale / 100)),
+                            max(1, int(subject.height * scale / 100)),
+                        )
+                        subject = subject.resize(new_size, Image.Resampling.LANCZOS)
+                        layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+                        x = (layer.width - subject.width) // 2
+                        y = (layer.height - subject.height) // 2
+                        layer.alpha_composite(subject, (x, y))
+                        subject = layer
+                    canvas.alpha_composite(subject, (0, 0))
+                    result = canvas.convert("RGB")
+                    st.image(result, caption="Background replaced", use_container_width=True)
+                    save_result(result, "background-changed.png")
+                    st.success("Background replacement completed.")
             except Exception as exc:
-                st.error("Background replacement failed.")
-                st.code(str(exc))
-                st.info(
-                    "If the model download or initialization failed, "
-                    "check the Streamlit Cloud logs and dependencies."
+                st.error(f"Background removal failed: {exc}")
+                st.info("Check that rembg and onnxruntime are installed and the deployment has enough memory.")
+    else:
+        st.info("Upload a subject photo to replace its background.")
+
+# ---------------------------------------------------------
+# TOOL 4: BLACK & WHITE
+# ---------------------------------------------------------
+elif tool_name == "Black & White":
+    contrast = st.slider("Contrast", 0.5, 2.0, 1.0, 0.05)
+    if original:
+        result = ImageOps.grayscale(original).convert("RGB")
+        result = ImageEnhance.Contrast(result).enhance(contrast)
+        render_preview(original, result)
+        if st.button("Apply black & white", type="primary"):
+            save_result(result, "black-and-white.png")
+    else:
+        st.info("Upload a photo to convert it to black and white.")
+
+# ---------------------------------------------------------
+# TOOL 5: COLOR TO SKETCH
+# ---------------------------------------------------------
+elif tool_name == "Color to Sketch":
+    strength = st.slider("Sketch blur strength", 1, 15, 5)
+    if original:
+        result = sketch_image(original, strength)
+        render_preview(original, result)
+        if st.button("Apply sketch effect", type="primary"):
+            save_result(result, "pencil-sketch.png")
+    else:
+        st.info("Upload a photo to create a pencil-style sketch.")
+
+# ---------------------------------------------------------
+# TOOL 6 & 7: PRINT PHOTO SHEETS
+# ---------------------------------------------------------
+elif tool_name in ["Passport Photo Sheet", "Stamp Photo Maker"]:
+    is_passport = tool_name == "Passport Photo Sheet"
+    default_w, default_h = (35, 45) if is_passport else (25, 30)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        photo_w = st.number_input("Width (mm)", 5, 100, default_w)
+    with c2:
+        photo_h = st.number_input("Height (mm)", 5, 100, default_h)
+    with c3:
+        copies = st.number_input("Number of copies", 1, 100, 8)
+
+    paper = st.selectbox("Paper size", ["A4", "Letter"])
+    dpi = st.selectbox("Print resolution (DPI)", [150, 300], index=1)
+
+    if original:
+        if st.button("Create printable sheet", type="primary"):
+            sheet, placed, capacity = make_photo_sheet(
+                original, photo_w, photo_h, int(copies), paper, dpi
+            )
+            st.image(sheet, caption=f"Printable sheet — {placed} photos", use_container_width=True)
+            save_result(sheet, "photo-sheet.png")
+            if placed < copies:
+                st.warning(
+                    f"Only {placed} copies fit on this paper at the selected dimensions. "
+                    f"Maximum capacity: {capacity}."
+                )
+    else:
+        st.info("Upload the photo you want to print.")
+
+# ---------------------------------------------------------
+# TOOL 8: IMAGE SIMILARITY
+# ---------------------------------------------------------
+elif tool_name == "Image Similarity":
+    second_upload = st.file_uploader(
+        "Upload the second image",
+        type=["jpg", "jpeg", "png", "webp"],
+        key="similarity_second",
+    )
+
+    if original and second_upload:
+        second = load_image(second_upload)
+        if second:
+            score = similarity_score(original, second)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.image(original, caption="Image A", use_container_width=True)
+            with col2:
+                st.image(second, caption="Image B", use_container_width=True)
+            st.metric("Pixel similarity estimate", f"{score:.1f}%")
+
+            a = np.asarray(fit_image(original, (400, 400)), dtype=np.int16)
+            b = np.asarray(fit_image(second, (400, 400)), dtype=np.int16)
+            diff = Image.fromarray(
+                np.uint8(np.abs(a - b).mean(axis=2).clip(0, 255))
+            )
+            st.image(diff, caption="Difference map", use_container_width=True)
+            st.caption("This is a pixel-based comparison, not a semantic AI similarity score.")
+    else:
+        st.info("Upload two images to compare them.")
+
+# ---------------------------------------------------------
+# TOOL 9: ADD DATE AND TEXT
+# ---------------------------------------------------------
+elif tool_name == "Add Date & Text":
+    text = st.text_input("Caption or watermark", "Your caption")
+    add_date = st.checkbox("Add date", value=False)
+    chosen_date = st.date_input("Date", value=date.today(), disabled=not add_date)
+    position = st.selectbox("Text position", ["Bottom", "Top", "Center"])
+    size = st.slider("Font size", 12, 100, 36)
+    color = st.color_picker("Text color", "#FFFFFF")
+
+    if original:
+        combined = text
+        if add_date:
+            combined = f"{text}  {chosen_date.isoformat()}".strip()
+        result = add_text(original, combined, position, color, size)
+        render_preview(original, result)
+        if st.button("Apply text overlay", type="primary"):
+            save_result(result, "text-overlay.png")
+    else:
+        st.info("Upload a photo to add text or a date.")
+
+# ---------------------------------------------------------
+# TOOL 10: VISIBLE GEOTAGGING
+# ---------------------------------------------------------
+elif tool_name == "Image Geotagging":
+    location = st.text_input("Location", "Bengaluru, India")
+    coords = st.text_input("GPS coordinates (optional)", "")
+    tag_date = st.date_input("Date", value=date.today())
+    position = st.selectbox("Overlay position", ["Bottom", "Top", "Center"])
+
+    if original:
+        lines = [x.strip() for x in [location, coords, tag_date.isoformat()] if x.strip()]
+        result = original.copy()
+        y = 18 if position == "Top" else (
+            max(10, result.height // 2) if position == "Center" else max(10, result.height - 120)
+        )
+        draw = ImageDraw.Draw(result)
+        font = make_font(max(16, result.width // 35))
+        padding = max(8, result.width // 80)
+        line_height = max(22, result.width // 30)
+        box_height = len(lines) * line_height + 2 * padding
+        draw.rectangle(
+            (0, max(0, y - padding), result.width, min(result.height, y + box_height)),
+            fill=(0, 0, 0),
+        )
+        for i, line in enumerate(lines):
+            draw.text((padding, y + i * line_height), line, fill="white", font=font)
+
+        render_preview(original, result)
+        if st.button("Apply location overlay", type="primary"):
+            save_result(result, "geotag-overlay.png")
+            st.success("Visible location overlay created.")
+        st.caption(
+            "This adds visible text to the image. It does not write GPS coordinates into EXIF metadata."
+        )
+    else:
+        st.info("Upload a photo to add a location overlay.")
+
+# ---------------------------------------------------------
+# TOOL 11: COLLAGE MAKER
+# ---------------------------------------------------------
+elif tool_name == "Collage Maker":
+    extra_uploads = st.file_uploader(
+        "Upload photos for your collage",
+        type=["jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True,
+        key="collage_images",
+    )
+    columns = st.selectbox("Grid columns", [2, 3, 4], index=1)
+    gap = st.slider("Spacing", 0, 40, 12)
+    cell_size = st.selectbox("Cell size", [250, 400, 600], index=1)
+    title = st.text_input("Optional collage title", "")
+
+    if original or extra_uploads:
+        images = []
+        if original:
+            images.append(original)
+        for f in extra_uploads or []:
+            img = load_image(f)
+            if img is not None:
+                images.append(img)
+
+        if images:
+            cols = int(columns)
+            rows = math.ceil(len(images) / cols)
+            width = cols * cell_size + (cols + 1) * gap
+            height = rows * cell_size + (rows + 1) * gap
+            title_h = 70 if title else 0
+            collage = Image.new("RGB", (width, height + title_h), "white")
+            draw = ImageDraw.Draw(collage)
+
+            if title:
+                draw.text(
+                    (gap, 12), title, fill="#222222",
+                    font=make_font(max(20, cell_size // 12))
                 )
 
+            for i, img in enumerate(images):
+                x = gap + (i % cols) * (cell_size + gap)
+                y = title_h + gap + (i // cols) * (cell_size + gap)
+                collage.paste(fit_image(img, (cell_size, cell_size)), (x, y))
 
-elif tool == "Color to Black and White":
-    st.subheader("⚫ Color to Black and White")
-    image = upload_image("Upload a color image", "grayscale")
+            st.image(collage, caption=f"Collage preview · {len(images)} images", use_container_width=True)
+            if st.button("Export collage", type="primary"):
+                save_result(collage, "collage.png")
+    else:
+        st.info("Upload a main image and any additional photos.")
 
-    if image:
-        contrast = st.slider("Contrast", 0.0, 2.0, 1.0, 0.05)
-        brightness = st.slider("Brightness", 0.0, 2.0, 1.0, 0.05)
+# ---------------------------------------------------------
+# TOOL 12: WALLPAPER DESIGNER
+# ---------------------------------------------------------
+elif tool_name == "Wallpaper Designer":
+    preset = st.selectbox(
+        "Canvas preset",
+        ["Phone (1080 × 1920)", "Desktop (1920 × 1080)", "Square (1080 × 1080)"],
+    )
+    bg = st.color_picker("Background color", "#25234D")
+    title = st.text_input("Wallpaper title", "DREAM BIG")
+    title_color = st.color_picker("Title color", "#FFFFFF")
+    title_position = st.selectbox("Title position", ["Top", "Center", "Bottom"])
 
-        if st.button("Convert to black and white", type="primary"):
-            result = grayscale_image(
-                image,
-                contrast=contrast,
-                brightness=brightness,
-            )
-            show_result(result, "black_and_white.png")
+    dimensions = {
+        "Phone (1080 × 1920)": (1080, 1920),
+        "Desktop (1920 × 1080)": (1920, 1080),
+        "Square (1080 × 1080)": (1080, 1080),
+    }
 
+    if st.button("Generate wallpaper", type="primary"):
+        size = dimensions[preset]
+        rgb = tuple(int(bg[i:i+2], 16) for i in (1, 3, 5))
+        wallpaper = Image.new("RGB", size, rgb)
 
-elif tool == "Color to Sketch":
-    st.subheader("✏️ Color to Sketch")
-    image = upload_image("Upload a photo", "sketch")
+        if original:
+            photo = fit_image(original, (int(size[0] * .84), int(size[1] * .68)))
+            wallpaper.paste(photo, ((size[0] - photo.width) // 2, int(size[1] * .08)))
 
-    if image:
-        style = st.selectbox(
-            "Sketch style", ["Pencil", "Charcoal", "Bold line art"]
+        wallpaper = add_text(
+            wallpaper, title, title_position, title_color,
+            max(28, size[0] // 15)
         )
-        strength = st.slider("Sketch strength", 3, 21, 9, 2)
+        st.image(wallpaper, caption="Wallpaper preview", use_container_width=True)
+        save_result(wallpaper, "wallpaper.png")
 
-        if st.button("Create sketch", type="primary"):
-            result = sketch_image(image, style, strength)
-            show_result(result, "sketch.png")
-
-
+# ---------------------------------------------------------
+# SHARED DOWNLOAD
+# ---------------------------------------------------------
 st.divider()
-st.caption("PragyanAI Image Studio • Built with Streamlit and Python")
+st.markdown("### Export your image")
+
+if st.session_state.result_image is not None:
+    st.download_button(
+        "⬇ Download edited image (PNG)",
+        data=png_bytes(st.session_state.result_image),
+        file_name=st.session_state.result_name or "image-studio.png",
+        mime="image/png",
+        type="primary",
+        use_container_width=True,
+    )
+else:
+    st.caption("Complete an edit or generate a design to enable downloading.")
