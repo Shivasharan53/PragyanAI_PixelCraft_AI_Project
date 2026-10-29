@@ -64,6 +64,37 @@ div[data-testid="stExpander"] { background:#fff; border:1px solid #e4e7f2; borde
 div[data-testid="stMetric"] { background:#fff; border:1px solid #e5e8f3; padding:14px; border-radius:14px; }
 hr { border-color:#e4e7f1; }
 .stAlert { border-radius:12px; }
+/* Main workspace: force readable contrast for Streamlit-native widgets. */
+[data-testid="stMain"] { color: #17213b !important; }
+[data-testid="stMain"] p,
+[data-testid="stMain"] label,
+[data-testid="stMain"] .stMarkdown,
+[data-testid="stMain"] [data-testid="stCaptionContainer"],
+[data-testid="stMain"] [data-testid="stWidgetLabel"],
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] { color: #263451; }
+[data-testid="stMain"] h1,
+[data-testid="stMain"] h2,
+[data-testid="stMain"] h3,
+[data-testid="stMain"] h4 { color: #17213b !important; }
+/* Keep input text readable in light mode. */
+[data-testid="stMain"] input,
+[data-testid="stMain"] textarea,
+[data-testid="stMain"] [data-baseweb="select"] div,
+[data-testid="stMain"] [data-baseweb="select"] span { color: #17213b !important; }
+[data-testid="stMain"] [data-testid="stFileUploaderDropzone"] { background:#fbfaff !important; border:1.5px dashed #bdb2ff !important; border-radius:14px !important; }
+[data-testid="stMain"] [data-testid="stFileUploaderDropzone"] * { color:#263451 !important; }
+[data-testid="stMain"] [data-testid="stExpander"] { background:#fff !important; border:1px solid #e1e5f2 !important; border-radius:14px !important; }
+[data-testid="stMain"] [data-testid="stExpander"] summary,
+[data-testid="stMain"] [data-testid="stExpander"] summary * { color:#263451 !important; }
+/* Make the top Streamlit toolbar visible without hiding Share or app controls. */
+header[data-testid="stHeader"] { background:rgba(244,246,252,.98) !important; }
+header[data-testid="stHeader"] button,
+header[data-testid="stHeader"] button svg,
+header[data-testid="stHeader"] [data-testid="stToolbar"] { color:#263451 !important; fill:#263451 !important; }
+/* Avoid accidentally turning main-area buttons white-on-white. */
+[data-testid="stMain"] .stButton > button:not([kind="primary"]):not([data-testid="baseButton-primary"]) { color:#4f3cc7 !important; background:#f1edff; border:1px solid #e0d9ff; }
+[data-testid="stMain"] .stButton > button[kind="primary"],
+[data-testid="stMain"] .stButton > button[data-testid="baseButton-primary"] { color:#fff !important; }
 footer { visibility:hidden; }
 </style>
 """, unsafe_allow_html=True)
@@ -137,24 +168,46 @@ def add_text(image, text, position, color, size):
 
 @st.cache_resource
 def get_background_session():
-    """Load the lightweight U2Net model once per Streamlit process."""
+    """Load a portrait-focused segmentation model once per app process."""
     from rembg import new_session
 
-    return new_session("u2net")
+    # BirefNet portrait is generally better for people, hair, and clothing edges
+    # than the older general-purpose U2Net model.
+    return new_session("birefnet-portrait")
 
 
 def remove_background(image):
-    """Return an RGBA cutout with the background made transparent."""
+    """Return an RGBA person cutout with a refined transparent background."""
     from rembg import remove
 
     rgba = image.convert("RGBA")
     session = get_background_session()
-    result = remove(rgba, session=session)
+
+    # Alpha matting can improve edge transitions around hair and clothing.
+    # If matting fails for an image, fall back to the model's standard mask.
+    try:
+        result = remove(
+            rgba,
+            session=session,
+            alpha_matting=True,
+            alpha_matting_foreground_threshold=240,
+            alpha_matting_background_threshold=10,
+            alpha_matting_erode_size=10,
+        )
+    except Exception:
+        result = remove(rgba, session=session)
 
     if not isinstance(result, Image.Image):
         result = Image.open(io.BytesIO(result))
 
-    return result.convert("RGBA")
+    result = result.convert("RGBA")
+
+    # Keep the model's alpha channel; do not flatten the cutout onto a color.
+    # Slightly soften only the alpha edge to reduce jagged cutout outlines.
+    alpha = result.getchannel("A")
+    alpha = alpha.filter(ImageFilter.GaussianBlur(radius=0.4))
+    result.putalpha(alpha)
+    return result
 
 
 def make_photo_sheet(image, photo_w_mm, photo_h_mm, copies, paper, dpi=300):
@@ -431,7 +484,7 @@ elif tool_name == "AI Background Change":
         if st.button("Remove background and replace", type="primary"):
             try:
                 with st.spinner(
-                    "Removing the background. The first run may download the U2Net model..."
+                    "Removing the background. The first run may download the portrait AI model..."
                 ):
                     cutout = remove_background(original)
 
