@@ -37,99 +37,34 @@ TOOLS = [
 st.markdown("""
 <style>
 :root { color-scheme: light; }
-.stApp {
-    background: #f5f6fb;
-    color: #20243a;
-}
-header[data-testid="stHeader"] {
-    background: rgba(245,246,251,.92);
-}
-.block-container {
-    padding-top: 1.5rem;
-    padding-bottom: 3rem;
-    max-width: 1600px;
-}
-section[data-testid="stSidebar"] {
-    background: #11182b;
-    border-right: 1px solid #27314b;
-}
-section[data-testid="stSidebar"] * {
-    color: #eef1ff;
-}
-section[data-testid="stSidebar"] .stButton > button {
-    text-align: left;
-    border: 1px solid transparent;
-    background: transparent;
-    color: #d2d9ef;
-    border-radius: 11px;
-    min-height: 44px;
-    padding: .55rem .7rem;
-    font-size: .88rem;
-}
-section[data-testid="stSidebar"] .stButton > button:hover {
-    background: #222d49;
-    border-color: #414d70;
-}
-.stButton > button[kind="primary"],
-.stButton > button[data-testid="baseButton-primary"] {
-    background: linear-gradient(110deg,#7664ed,#5c50d5);
-    color: white;
-    border: 0;
-    border-radius: 10px;
-    font-weight: 650;
-}
-.stButton > button {
-    border-radius: 10px;
-    min-height: 42px;
-}
-.stTextInput input, .stNumberInput input,
-.stDateInput input, .stSelectbox div[data-baseweb="select"] {
-    border-radius: 10px;
-}
-.stSlider [data-baseweb="slider"] {
-    padding-top: .35rem;
-}
-.hero {
-    background: linear-gradient(120deg,#ffffff,#f0edff);
-    border: 1px solid #e3e2f4;
-    padding: 22px 25px;
-    border-radius: 18px;
-    margin-bottom: 20px;
-}
-.hero h1 {
-    margin: 0;
-    font-size: 2rem;
-    letter-spacing: -.045em;
-    color: #20243a;
-}
-.hero p { color: #70758d; margin: .45rem 0 0; }
-.panel {
-    background: white;
-    border: 1px solid #e5e7f0;
-    border-radius: 16px;
-    padding: 18px;
-    margin-bottom: 15px;
-}
-.panel-title {
-    font-size: 1.05rem;
-    font-weight: 700;
-    margin-bottom: 12px;
-    color: #252943;
-}
-.muted { color: #737990; font-size: .88rem; }
-.tool-chip {
-    display: inline-block;
-    border-radius: 999px;
-    padding: 5px 11px;
-    background: #eeeaff;
-    color: #5c50c9;
-    font-size: .8rem;
-    font-weight: 650;
-}
-div[data-testid="stImage"] img {
-    border-radius: 12px;
-}
-footer {visibility: hidden;}
+.stApp { background: #f4f6fc; color: #17213b; }
+header[data-testid="stHeader"] { background: rgba(244,246,252,.94); }
+.block-container { padding-top: 1.05rem; padding-bottom: 2.4rem; max-width: 1680px; }
+section[data-testid="stSidebar"] { background: #10182d; border-right: 1px solid #26324e; }
+section[data-testid="stSidebar"] * { color: #edf1ff; }
+section[data-testid="stSidebar"] .stButton > button { text-align:left; border:1px solid transparent; background:transparent; color:#d6def5; border-radius:11px; min-height:43px; padding:.5rem .7rem; font-size:.88rem; transition:all .18s ease; }
+section[data-testid="stSidebar"] .stButton > button:hover { background:#222e4c; border-color:#43517a; transform:translateX(2px); }
+section[data-testid="stSidebar"] .stButton > button[kind="primary"], section[data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"] { background:linear-gradient(110deg,#8058ff,#6545e8); color:white; box-shadow:0 5px 16px rgba(104,75,235,.22); }
+.stButton > button[kind="primary"], .stButton > button[data-testid="baseButton-primary"] { background:linear-gradient(110deg,#8058ff,#6545e8); color:white; border:0; border-radius:11px; font-weight:650; box-shadow:0 5px 14px rgba(104,75,235,.16); }
+.stButton > button { border-radius:11px; min-height:42px; transition:all .18s ease; }
+.stButton > button:hover { border-color:#9d8cff; }
+.stTextInput input, .stNumberInput input, .stDateInput input, .stSelectbox div[data-baseweb="select"] { border-radius:10px; }
+.stSlider [data-baseweb="slider"] { padding-top:.35rem; }
+.hero { background:linear-gradient(112deg,#ffffff 0%,#f1edff 52%,#e5f3ff 100%); border:1px solid #e3e4f7; padding:25px 28px; border-radius:20px; margin-bottom:20px; box-shadow:0 8px 26px rgba(46,53,94,.045); position:relative; overflow:hidden; }
+.hero h1 { margin:8px 0 0; font-size:clamp(1.7rem,2.6vw,2.5rem); letter-spacing:-.045em; color:#17213b; font-weight:800; }
+.hero p { color:#65708d; margin:.5rem 0 0; font-size:1.02rem; }
+.panel { background:white; border:1px solid #e5e8f3; border-radius:17px; padding:18px; margin-bottom:15px; box-shadow:0 5px 18px rgba(31,43,79,.035); }
+.panel-title { font-size:1.05rem; font-weight:750; margin-bottom:12px; color:#202943; }
+.muted { color:#737d98; font-size:.88rem; }
+.tool-chip { display:inline-block; border-radius:999px; padding:6px 12px; background:#e9e4ff; color:#6545d8; font-size:.76rem; font-weight:750; letter-spacing:.04em; }
+div[data-testid="stImage"] img { border-radius:13px; border:1px solid #e9ebf5; }
+div[data-testid="stFileUploader"] section { background:#fafaff; border:1.5px dashed #c8c1ff; border-radius:14px; }
+div[data-testid="stFileUploader"] button { border-radius:9px; }
+div[data-testid="stExpander"] { background:#fff; border:1px solid #e4e7f2; border-radius:14px; }
+div[data-testid="stMetric"] { background:#fff; border:1px solid #e5e8f3; padding:14px; border-radius:14px; }
+hr { border-color:#e4e7f1; }
+.stAlert { border-radius:12px; }
+footer { visibility:hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -325,9 +260,10 @@ description = next(t[2] for t in TOOLS if t[1] == tool_name)
 st.markdown(
     f"""
     <div class="hero">
-      <span class="tool-chip">IMAGE STUDIO / TOOL {next(t[0] for t in TOOLS if t[1] == tool_name)}</span>
+      <span class="tool-chip">IMAGE STUDIO · TOOL {next(t[0] for t in TOOLS if t[1] == tool_name)}</span>
       <h1>{tool_name}</h1>
       <p>{description}</p>
+      <p style="font-size:.82rem;color:#7b83a0;margin-top:13px">Upload&nbsp; · &nbsp;Customize&nbsp; · &nbsp;Preview&nbsp; · &nbsp;Export</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -337,7 +273,8 @@ st.markdown(
 # SHARED UPLOAD
 # ---------------------------------------------------------
 with st.container(border=True):
-    st.markdown("**Upload your image**")
+    st.markdown("### ① Upload your image")
+    st.caption("Start with a clear JPG, PNG or WEBP photo. You can crop it below before editing.")
     uploaded = st.file_uploader(
         "Choose a JPG, JPEG, PNG or WEBP image",
         type=["jpg", "jpeg", "png", "webp"],
@@ -345,6 +282,58 @@ with st.container(border=True):
     )
 
 original = load_image(uploaded)
+
+# ---------------------------------------------------------
+# OPTIONAL CROP CONTROLS (shown inside every existing tool)
+# ---------------------------------------------------------
+if original is not None:
+    with st.expander("✂️ Optional crop & framing", expanded=False):
+        st.caption("Crop the uploaded photo before using the selected tool. Leave Original selected to keep the full photo.")
+        crop_mode = st.selectbox(
+            "Crop shape",
+            ["Original", "Square (1:1)", "Portrait (4:5)", "Portrait (3:4)", "Landscape (16:9)", "Phone wallpaper (9:16)", "Custom margins"],
+            key=f"crop_mode_{tool_name}",
+        )
+
+        if crop_mode == "Custom margins":
+            c1, c2 = st.columns(2)
+            with c1:
+                crop_left = st.slider("Crop left (%)", 0, 45, 0, key=f"crop_left_{tool_name}")
+                crop_top = st.slider("Crop top (%)", 0, 45, 0, key=f"crop_top_{tool_name}")
+            with c2:
+                crop_right = st.slider("Crop right (%)", 0, 45, 0, key=f"crop_right_{tool_name}")
+                crop_bottom = st.slider("Crop bottom (%)", 0, 45, 0, key=f"crop_bottom_{tool_name}")
+            left_px = int(original.width * crop_left / 100)
+            top_px = int(original.height * crop_top / 100)
+            right_px = original.width - int(original.width * crop_right / 100)
+            bottom_px = original.height - int(original.height * crop_bottom / 100)
+            if right_px - left_px < 10 or bottom_px - top_px < 10:
+                st.warning("The crop is too small. Reduce the crop margins.")
+            else:
+                original = original.crop((left_px, top_px, right_px, bottom_px))
+        elif crop_mode != "Original":
+            ratios = {
+                "Square (1:1)": (1, 1),
+                "Portrait (4:5)": (4, 5),
+                "Portrait (3:4)": (3, 4),
+                "Landscape (16:9)": (16, 9),
+                "Phone wallpaper (9:16)": (9, 16),
+            }
+            target_w, target_h = ratios[crop_mode]
+            current_ratio = original.width / original.height
+            target_ratio = target_w / target_h
+            if current_ratio > target_ratio:
+                new_width = max(1, int(original.height * target_ratio))
+                left_px = (original.width - new_width) // 2
+                crop_box = (left_px, 0, left_px + new_width, original.height)
+            else:
+                new_height = max(1, int(original.width / target_ratio))
+                top_px = (original.height - new_height) // 2
+                crop_box = (0, top_px, original.width, top_px + new_height)
+            original = original.crop(crop_box)
+
+        st.caption(f"Working image size: {original.width} × {original.height} px")
+        st.image(original, caption="Crop preview", use_container_width=True)
 
 # Each tool uses the currently uploaded image.
 # Upload widgets are keyed by tool, so each workspace has its own upload.
