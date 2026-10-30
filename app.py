@@ -55,7 +55,14 @@ html, body, [class*="css"] {
     color: #17213b;
 }
 
-/* Sidebar Styling matching screenshot */
+/* Fix any white-on-white text issues */
+[data-testid="stMain"] label,
+[data-testid="stMain"] span,
+[data-testid="stMain"] p {
+    color: #17213b !important;
+}
+
+/* Sidebar Styling */
 section[data-testid="stSidebar"] {
     background-color: var(--sidebar-bg) !important;
     border-right: 1px solid #1e2842 !important;
@@ -93,7 +100,7 @@ section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
     box-shadow: 0 4px 14px rgba(108, 92, 231, 0.35) !important;
 }
 
-/* Studio Hero Header */
+/* Hero Header */
 .hero-container {
     background: linear-gradient(115deg, #ffffff 0%, #f4efff 50%, #eaf3ff 100%);
     border: 1px solid #e3e6f7;
@@ -147,7 +154,7 @@ section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
     padding: 1.1rem !important;
 }
 
-/* Step Badges (1, 2, 3) */
+/* Step Badges */
 .step-header {
     display: flex;
     align-items: center;
@@ -203,14 +210,14 @@ section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
     border-color: #6c52ea !important;
 }
 
-/* File Uploader Box */
+/* File Uploader Dropzone */
 [data-testid="stFileUploaderDropzone"] {
     background: #faf8ff !important;
     border: 1.8px dashed #c3b8ff !important;
     border-radius: 14px !important;
 }
 
-/* Image rounding */
+/* Image Border */
 div[data-testid="stImage"] img {
     border-radius: 12px;
     border: 1px solid #e7ebf7;
@@ -229,6 +236,9 @@ if "result_image" not in st.session_state:
 
 if "result_name" not in st.session_state:
     st.session_state.result_name = "enhanced-image.png"
+
+if "enh_aspect" not in st.session_state:
+    st.session_state.enh_aspect = "Original"
 
 # ---------------------------------------------------------
 # CORE IMAGE & AI HELPERS
@@ -278,8 +288,6 @@ def remove_background_ai(image, model_choice="u2net"):
     from rembg import remove
     session = get_bg_model_session(model_choice)
     rgba = image.convert("RGBA")
-
-    # High precision alpha matting
     try:
         cutout = remove(
             rgba,
@@ -296,7 +304,6 @@ def remove_background_ai(image, model_choice="u2net"):
         cutout = Image.open(io.BytesIO(cutout))
 
     cutout = cutout.convert("RGBA")
-    # Clean edge anti-aliasing
     alpha = cutout.getchannel("A").filter(ImageFilter.GaussianBlur(radius=0.45))
     cutout.putalpha(alpha)
     return cutout
@@ -306,7 +313,7 @@ def save_result(image, filename="studio-output.png"):
     st.session_state.result_name = filename
 
 # ---------------------------------------------------------
-# SIDEBAR (MATCHING SCREENSHOT)
+# SIDEBAR NAVIGATION
 # ---------------------------------------------------------
 with st.sidebar:
     st.markdown("""
@@ -337,7 +344,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# HERO BANNER (MATCHING SCREENSHOT)
+# HERO BANNER
 # ---------------------------------------------------------
 tool_info = next(t for t in TOOLS if t[2] == st.session_state.selected_tool)
 tool_num, tool_icon, tool_name, tool_desc = tool_info
@@ -363,7 +370,7 @@ st.markdown(f"""
 # ---------------------------------------------------------
 
 # =========================================================
-# 1. IMAGE ENHANCEMENT (EXACT 3-CARD LAYOUT AS SCREENSHOT)
+# 1. IMAGE ENHANCEMENT (WITH VISIBLE ASPECT RATIO TILES)
 # =========================================================
 if tool_name == "Image Enhancement":
     c1, c2, c3 = st.columns([1.1, 1.25, 1.15], gap="medium")
@@ -383,37 +390,58 @@ if tool_name == "Image Enhancement":
             if original is not None:
                 st.image(original, caption=f"{original.width} × {original.height} px", use_container_width=True)
 
-    # Card 2: Crop & Framing
+    # Card 2: Crop & Framing (Fixed Aspect Buttons)
     with c2:
         with st.container(border=True):
             st.markdown('<div class="step-header"><span class="step-num">2</span> Crop & framing (optional)</div>', unsafe_allow_html=True)
             st.caption("Crop the image before enhancement. Leave Original to keep full photo.")
 
-            st.write("**Choose aspect ratio**")
-            aspect_choice = st.radio(
-                "Aspect ratio selector",
-                ["Original", "1:1 Square", "4:5 Portrait", "16:9 Landscape", "9:16 Phone"],
-                horizontal=True,
-                label_visibility="collapsed"
-            )
+            st.markdown("<p style='font-size:0.92rem;font-weight:700;margin-bottom:8px;'>Choose aspect ratio</p>", unsafe_allow_html=True)
 
-            st.write("**Adjust crop (remove from edges %)**")
+            b_cols = st.columns(5)
+            aspect_options = [
+                ("Original", "Original"),
+                ("1:1", "1:1\nSquare"),
+                ("4:5", "4:5\nPort."),
+                ("16:9", "16:9\nLand."),
+                ("9:16", "9:16\nPhone")
+            ]
+
+            for idx, (val, display_label) in enumerate(aspect_options):
+                with b_cols[idx]:
+                    is_active = (st.session_state.enh_aspect == val)
+                    if st.button(
+                        display_label,
+                        key=f"aspect_{val}",
+                        type="primary" if is_active else "secondary",
+                        use_container_width=True
+                    ):
+                        st.session_state.enh_aspect = val
+                        st.rerun()
+
+            aspect_choice = st.session_state.enh_aspect
+
+            st.markdown("<p style='font-size:0.92rem;font-weight:700;margin-top:12px;margin-bottom:4px;'>Adjust crop (remove from edges %)</p>", unsafe_allow_html=True)
             sl1, sl2 = st.columns(2)
             with sl1:
-                crop_top = st.slider("Top", 0, 40, 0)
-                crop_bottom = st.slider("Bottom", 0, 40, 0)
+                crop_top = st.slider("Top (%)", 0, 40, 0, key="c_top")
+                crop_bottom = st.slider("Bottom (%)", 0, 40, 0, key="c_bottom")
             with sl2:
-                crop_left = st.slider("Left", 0, 40, 0)
-                crop_right = st.slider("Right", 0, 40, 0)
+                crop_left = st.slider("Left (%)", 0, 40, 0, key="c_left")
+                crop_right = st.slider("Right (%)", 0, 40, 0, key="c_right")
 
-            # Apply Cropping
+            if st.button("↻ Reset Crop", key="reset_crop_btn", use_container_width=True):
+                st.session_state.enh_aspect = "Original"
+                st.rerun()
+
+            # Execute Cropping Logic
             if original is not None:
                 if aspect_choice != "Original":
                     ratio_dict = {
-                        "1:1 Square": (1, 1),
-                        "4:5 Portrait": (4, 5),
-                        "16:9 Landscape": (16, 9),
-                        "9:16 Phone": (9, 16)
+                        "1:1": (1, 1),
+                        "4:5": (4, 5),
+                        "16:9": (16, 9),
+                        "9:16": (9, 16)
                     }
                     rw, rh = ratio_dict[aspect_choice]
                     target_ratio = rw / rh
@@ -449,7 +477,7 @@ if tool_name == "Image Enhancement":
 
             apply_enh = st.button("✦ Apply Enhancement", type="primary", use_container_width=True)
 
-    # Preview & Download Bottom Grid (Matching Screenshot)
+    # Preview & Download Bottom Grid
     if original is not None:
         result = ImageEnhance.Brightness(original).enhance(max(0.0, 1.0 + brightness / 100))
         result = ImageEnhance.Contrast(result).enhance(max(0.0, 1.0 + contrast / 100))
@@ -493,6 +521,7 @@ if tool_name == "Image Enhancement":
                 with a1:
                     if st.button("↻ Reset All", use_container_width=True):
                         st.session_state.result_image = None
+                        st.session_state.enh_aspect = "Original"
                         st.rerun()
                 with a2:
                     if st.button("Use Original", use_container_width=True):
@@ -509,7 +538,7 @@ if tool_name == "Image Enhancement":
                 """, unsafe_allow_html=True)
 
 # =========================================================
-# 3. AI BACKGROUND CHANGE (PRECISION MATTING FIX)
+# 3. AI BACKGROUND CHANGE
 # =========================================================
 elif tool_name == "AI Background Change":
     left_c, right_c = st.columns([1, 1.25], gap="large")
@@ -546,7 +575,7 @@ elif tool_name == "AI Background Change":
                 st.info("Upload an image on the left to start background removal.")
             else:
                 if run_btn:
-                    with st.spinner("AI is cleanly segmenting the subject (hair & edge anti-aliasing)..."):
+                    with st.spinner("AI is segmenting the subject cleanly..."):
                         cutout = remove_background_ai(original)
 
                         if bg_mode == "Transparent Cutout (PNG)":
@@ -586,7 +615,7 @@ elif tool_name == "AI Background Change":
                     st.image(original, caption="Original Image", use_container_width=True)
 
 # =========================================================
-# 9. ADD DATE & TEXT (FREE MOVEMENT & FONTS)
+# 9. ADD DATE & TEXT
 # =========================================================
 elif tool_name == "Add Date & Text":
     left_c, right_c = st.columns([1, 1.25], gap="large")
@@ -613,7 +642,7 @@ elif tool_name == "Add Date & Text":
                 text_color = st.color_picker("Text Color", "#ffffff")
                 bg_box = st.checkbox("Add Background Pill", value=True)
 
-            st.write("**Free Position Movement (Anywhere on Canvas)**")
+            st.write("**Free Position Movement**")
             pos_x = st.slider("X Position (Horizontal %)", 0, 100, 50)
             pos_y = st.slider("Y Position (Vertical %)", 0, 100, 85)
 
@@ -625,11 +654,9 @@ elif tool_name == "Add Date & Text":
                 draw = ImageDraw.Draw(out)
                 font = get_font_by_choice(font_style, font_size)
 
-                # Calculate bounding box
                 bbox = draw.textbbox((0, 0), text_val, font=font, stroke_width=2)
                 tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-                # Map % position to pixel coordinate
                 target_x = int((out.width - tw) * (pos_x / 100.0))
                 target_y = int((out.height - th) * (pos_y / 100.0))
 
@@ -665,7 +692,7 @@ elif tool_name == "Add Date & Text":
                 st.info("Upload an image on the left to add movable text.")
 
 # =========================================================
-# 10. IMAGE GEOTAGGING (PROFESSIONAL GPS WATERMARK)
+# 10. IMAGE GEOTAGGING
 # =========================================================
 elif tool_name == "Image Geotagging":
     left_c, right_c = st.columns([1, 1.25], gap="large")
@@ -710,7 +737,6 @@ elif tool_name == "Image Geotagging":
                 box_w = max(int(geo_img.width * 0.52), 340)
                 box_h = line_spacing * 3 + pad * 2
 
-                # Coordinates placement
                 if "Bottom" in badge_pos:
                     by = geo_img.height - box_h - 24
                 else:
@@ -721,7 +747,6 @@ elif tool_name == "Image Geotagging":
                 else:
                     bx = geo_img.width - box_w - 24
 
-                # Styling
                 if badge_style == "Modern Dark Glass":
                     bg_col = (15, 23, 42)
                     text_main = "#ffffff"
